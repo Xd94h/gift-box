@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A gift for you</title>
+<style>
+  :root{ --bg:#e9e4da; --gold:#d4a73a; --gold-lt:#f6dc86; --gold-dk:#8a6416; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(circle at 50% 40%, #f4f0e8, var(--bg) 70%);
+    display:flex;align-items:center;justify-content:center;
+    font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;overflow:hidden;
+  }
+
+  /* PHOTO 3:4 with black stroke + black glow */
+  .photo{
+    position:relative;
+    height:min(94vh, calc(94vw * 4 / 3));
+    aspect-ratio:3/4;
+    border:4px solid #000;
+    border-radius:6px;
+    box-shadow:0 0 14px 3px rgba(0,0,0,.75), 0 0 45px 10px rgba(0,0,0,.45);
+    overflow:hidden;background:#222;
+  }
+  .photo img{width:100%;height:100%;object-fit:cover;display:block}
+
+  /* GIFT + CAPTION, 1 inch from bottom */
+  .gift-wrap{
+    position:absolute;left:0;right:0;bottom:1in;
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+  }
+  .gift{
+    position:relative;width:54%;max-width:280px;background:none;border:0;cursor:pointer;
+    animation:float 2.8s ease-in-out infinite;
+    filter:drop-shadow(0 12px 12px rgba(0,0,0,.55));
+    -webkit-tap-highlight-color:transparent;
+  }
+  .gift-img{display:block;width:100%;height:auto;user-select:none;-webkit-user-drag:none}
+  .gift:focus-visible{outline:3px solid var(--gold-lt);outline-offset:6px}
+  .gift:active{transform:scale(.95)}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  .shine{animation:glint 3.2s ease-in-out infinite}
+  @keyframes glint{0%,60%,100%{opacity:0}80%{opacity:.5}}
+
+  .label{
+    position:absolute;left:0;right:0;top:60%;text-align:center;pointer-events:none;
+    color:#fff;font-weight:800;font-size:clamp(14px,4.2vw,22px);
+    text-shadow:0 1px 3px #000,0 0 8px rgba(0,0,0,.8);
+  }
+  .caption{
+    color:#fff;font-weight:800;font-size:clamp(22px,6.6vw,34px);text-align:center;letter-spacing:.2px;
+    -webkit-text-stroke:5px #000;paint-order:stroke fill;
+    text-shadow:0 2px 6px rgba(0,0,0,.6);
+  }
+
+  /* LOADING 0 -> 100% in 3s */
+  .overlay{position:fixed;inset:0;background:#000;display:none;align-items:center;justify-content:center;z-index:10}
+  .overlay.on{display:flex}
+  .loader{width:min(78vw,340px);text-align:center;color:#fff}
+  .bar{height:26px;border:2px solid var(--gold);border-radius:6px;padding:3px;box-shadow:0 0 14px rgba(212,167,58,.45)}
+  .fill{height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,var(--gold-dk),var(--gold-lt))}
+  .pct{margin-top:14px;font-size:30px;font-weight:800;color:var(--gold-lt);font-variant-numeric:tabular-nums}
+
+  #videoLayer video{width:100%;height:100%;object-fit:contain;background:#000}
+  @media (prefers-reduced-motion:reduce){.gift,.shine{animation:none}}
+</style>
+</head>
+<body>
+
+<main class="photo">
+  <img src="photo.jpg" alt="Photo">
+  <div class="gift-wrap">
+    <button class="gift" id="gift" aria-label="Open gift">
+      <img class="gift-img" src="gift.png" alt="" draggable="false">
+      <span class="label">Click here 🌹💌</span>
+    </button>
+    <p class="caption">I have a gift for you</p>
+  </div>
+</main>
+
+<div class="overlay" id="loading">
+  <div class="loader">
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <div class="pct" id="pct">0%</div>
+  </div>
+</div>
+
+<div class="overlay" id="videoLayer">
+  <video id="vid" src="video.mp4" playsinline controls></video>
+</div>
+
+<audio id="bgm" src="music.mp3" loop preload="auto" autoplay></audio>
+
+<script>
+  const bgm = document.getElementById('bgm');
+  let videoOpened = false, playing = false;
+  const evs = ['pointerdown','touchstart','touchend','click','keydown'];
+
+  function startMusic(){
+    if (videoOpened || playing) return;
+    const p = bgm.play();
+    if (p) p.then(()=>{ playing = true; evs.forEach(e=>document.removeEventListener(e,startMusic)); }).catch(()=>{});
+  }
+  // 1) try instantly on load  2) silently retry on first touch/click if browser blocked it
+  startMusic();
+  window.addEventListener('load', startMusic);
+  window.addEventListener('pageshow', startMusic);
+  bgm.addEventListener('canplaythrough', startMusic, {once:true});
+  evs.forEach(e=>document.addEventListener(e,startMusic,{passive:true}));
+
+  // Gift click -> loading 0..100% in 3s -> video
+  const gift = document.getElementById('gift');
+  const loading = document.getElementById('loading');
+  const fill = document.getElementById('fill');
+  const pct = document.getElementById('pct');
+  const layer = document.getElementById('videoLayer');
+  const vid = document.getElementById('vid');
+  let busy = false;
+
+  gift.addEventListener('click', () => {
+    if (busy) return; busy = true;
+    loading.classList.add('on');
+    const t0 = performance.now();
+    (function tick(now){
+      const p = Math.min((now - t0) / 3000, 1), v = Math.round(p * 100);
+      fill.style.width = v + '%'; pct.textContent = v + '%';
+      if (p < 1) return requestAnimationFrame(tick);
+      openVideo();
+    })(t0);
+  });
+
+  function openVideo(){
+    videoOpened = true;
+    bgm.pause();               // bg music band
+    loading.classList.remove('on');
+    layer.classList.add('on');
+    vid.currentTime = 0; vid.muted = false; vid.volume = 1;
+    vid.play().catch(()=>{});
+  }
+</script>
+</body>
+</html>
