@@ -80,6 +80,8 @@
   </div>
 </main>
 
+<div class="overlay" id="gate" style="display:none;cursor:pointer;background:rgba(0,0,0,.55);color:#fff;font-weight:800;font-size:22px">Tap to open 🎁</div>
+
 <div class="overlay" id="loading">
   <div class="loader">
     <div class="bar"><div class="fill" id="fill"></div></div>
@@ -94,30 +96,48 @@
 <audio id="bgm" src="music.mp3" loop preload="auto" autoplay></audio>
 
 <script>
-  const bgm = document.getElementById('bgm');
-  let videoOpened = false, audible = false;
-  const evs = ['pointerdown','pointerup','mousedown','touchstart','touchend','click','keydown'];
+  /* ===== BACKGROUND MUSIC ===== */
+  // true  = pehle ek "Tap to open" screen aayegi, uske tap pe music 100% guaranteed chalega
+  // false = bina screen ke try karega (browser block kare toh pehle touch pe chalega)
+  const REQUIRE_TAP_START = false;
 
-  function unmute(){
+  const bgm = document.getElementById('bgm');
+  const gate = document.getElementById('gate');
+  let videoOpened = false, audible = false;
+  // sirf wahi events jo browser "real user gesture" maanta hai
+  const evs = ['click','touchend','pointerup','mousedown','keydown'];
+
+  bgm.loop = true; bgm.volume = 1;
+
+  function goAudible(){
     if (videoOpened || audible) return;
     bgm.muted = false;
     const p = bgm.play();
-    const ok = () => { if (!bgm.paused && !bgm.muted) { audible = true; evs.forEach(e=>document.removeEventListener(e,unmute,true)); } };
-    if (p) p.then(ok).catch(()=>{ bgm.muted = true; bgm.play().catch(()=>{}); }); else ok();
+    const check = () => {
+      if (!bgm.paused && !bgm.muted){ audible = true; evs.forEach(e=>document.removeEventListener(e,goAudible,true)); }
+    };
+    if (p) p.then(check).catch(()=>{ bgm.muted = true; bgm.play().catch(()=>{}); }); else check();
   }
 
-  // Step 1: try normal (with sound) autoplay immediately
-  bgm.muted = false;
-  const first = bgm.play();
-  if (first) first.then(()=>{ audible = true; }).catch(()=>{
-    // Step 2: browser blocked sound -> run it muted right now (always allowed),
-    // and switch the sound ON at the very first touch/click, no delay, no message
-    bgm.muted = true;
-    bgm.play().catch(()=>{});
-  });
+  function tryAutoplay(){
+    bgm.muted = false;
+    const p = bgm.play();
+    if (p) p.then(()=>{ audible = true; }).catch(()=>{
+      // sound blocked -> muted chalao abhi (hamesha allowed), pehle gesture pe awaaz on
+      bgm.muted = true;
+      bgm.play().catch(()=>{});
+    });
+  }
 
-  evs.forEach(e=>document.addEventListener(e,unmute,true));
-  window.addEventListener('pageshow', ()=>{ if(!videoOpened && bgm.paused){ bgm.play().catch(()=>{}); } });
+  if (REQUIRE_TAP_START){
+    gate.style.display = 'flex';
+    gate.addEventListener('click', () => { gate.style.display = 'none'; goAudible(); });
+  } else {
+    tryAutoplay();
+    evs.forEach(e=>document.addEventListener(e,goAudible,true));
+    document.addEventListener('visibilitychange', () => { if(!document.hidden && !videoOpened && bgm.paused) bgm.play().catch(()=>{}); });
+    bgm.addEventListener('canplay', () => { if (bgm.paused && !videoOpened) tryAutoplay(); }, {once:true});
+  }
 
   // Gift click -> loading 0..100% in 3s -> video
   const gift = document.getElementById('gift');
