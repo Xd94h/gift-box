@@ -14,11 +14,11 @@
     font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;overflow:hidden;
   }
 
-  /* PHOTO 3:4 with black stroke + black glow */
+  /* PHOTO 9:16 with black stroke + black glow */
   .photo{
     position:relative;
-    height:min(94vh, calc(94vw * 4 / 3));
-    aspect-ratio:3/4;
+    height:min(94vh, calc(94vw * 16 / 9));
+    aspect-ratio:9/16;
     border:4px solid #000;
     border-radius:6px;
     box-shadow:0 0 14px 3px rgba(0,0,0,.75), 0 0 45px 10px rgba(0,0,0,.45);
@@ -26,9 +26,9 @@
   }
   .photo img{width:100%;height:100%;object-fit:cover;display:block}
 
-  /* GIFT + CAPTION, 1 inch from bottom */
+  /* GIFT + CAPTION, 1 cm from bottom */
   .gift-wrap{
-    position:absolute;left:0;right:0;bottom:1in;
+    position:absolute;left:0;right:0;bottom:1cm;
     display:flex;flex-direction:column;align-items:center;gap:6px;
   }
   .gift{
@@ -95,20 +95,29 @@
 
 <script>
   const bgm = document.getElementById('bgm');
-  let videoOpened = false, playing = false;
-  const evs = ['pointerdown','touchstart','touchend','click','keydown'];
+  let videoOpened = false, audible = false;
+  const evs = ['pointerdown','pointerup','mousedown','touchstart','touchend','click','keydown'];
 
-  function startMusic(){
-    if (videoOpened || playing) return;
+  function unmute(){
+    if (videoOpened || audible) return;
+    bgm.muted = false;
     const p = bgm.play();
-    if (p) p.then(()=>{ playing = true; evs.forEach(e=>document.removeEventListener(e,startMusic)); }).catch(()=>{});
+    const ok = () => { if (!bgm.paused && !bgm.muted) { audible = true; evs.forEach(e=>document.removeEventListener(e,unmute,true)); } };
+    if (p) p.then(ok).catch(()=>{ bgm.muted = true; bgm.play().catch(()=>{}); }); else ok();
   }
-  // 1) try instantly on load  2) silently retry on first touch/click if browser blocked it
-  startMusic();
-  window.addEventListener('load', startMusic);
-  window.addEventListener('pageshow', startMusic);
-  bgm.addEventListener('canplaythrough', startMusic, {once:true});
-  evs.forEach(e=>document.addEventListener(e,startMusic,{passive:true}));
+
+  // Step 1: try normal (with sound) autoplay immediately
+  bgm.muted = false;
+  const first = bgm.play();
+  if (first) first.then(()=>{ audible = true; }).catch(()=>{
+    // Step 2: browser blocked sound -> run it muted right now (always allowed),
+    // and switch the sound ON at the very first touch/click, no delay, no message
+    bgm.muted = true;
+    bgm.play().catch(()=>{});
+  });
+
+  evs.forEach(e=>document.addEventListener(e,unmute,true));
+  window.addEventListener('pageshow', ()=>{ if(!videoOpened && bgm.paused){ bgm.play().catch(()=>{}); } });
 
   // Gift click -> loading 0..100% in 3s -> video
   const gift = document.getElementById('gift');
